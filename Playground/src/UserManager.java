@@ -1,15 +1,12 @@
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 
 public class UserManager {
 
 	private String saveFileName;
 
-	private ArrayList<User> users;
+	private ArrayList<User> users = new ArrayList<>();
 
 	public UserManager(String saveFileName) {
 		this.saveFileName = saveFileName;
@@ -50,24 +47,15 @@ public class UserManager {
 
 	@SuppressWarnings("unchecked")
 	public void loadLogins() throws IOException {
-		ObjectInputStream oin = new ObjectInputStream(new FileInputStream(
-				saveFileName));
 		try {
-			users = (ArrayList<User>) oin.readObject();
-			if (users == null) {
-				users = new ArrayList<User>();
-			}
+			Serializable users = PersistData.load(saveFileName);
+			this.users = (ArrayList<User>) users;
 		} catch (Exception e) {
-			users = new ArrayList<User>();
+			users = new ArrayList<>();
 		}
-		oin.close();
 	}
 
 	public void saveLogins() throws IOException {
-		ObjectOutputStream oout = new ObjectOutputStream(new FileOutputStream(
-				saveFileName));
-		oout.writeObject(users);
-		oout.flush();
-		oout.close();
+		PersistData.persist(saveFileName, users);
 	}
 }

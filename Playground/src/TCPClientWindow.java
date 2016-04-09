@@ -5,10 +5,12 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.IOException;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JList;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
@@ -29,8 +31,13 @@ public class TCPClientWindow extends JFrame {
 
 	private StyledDocument chatDisplayDoc;
 
-	public TCPClientWindow() {
+	private ServerConnection connection;
+
+	public TCPClientWindow(ServerConnection connection) {
 		super("Chat Client");
+
+		this.connection = connection;
+
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setBounds(100, 100, 450, 300);
 		contentPane = new JPanel();
@@ -58,6 +65,7 @@ public class TCPClientWindow extends JFrame {
 		chatDisplay.setEditable(false);
 		chatDisplay.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 12));
 		chatDisplayDoc = chatDisplay.getStyledDocument();
+		connection.addTextDisplay(chatDisplayDoc);
 		chatScrollPane.setViewportView(chatDisplay);
 
 		JScrollPane listScrollPane = new JScrollPane();
@@ -106,8 +114,17 @@ public class TCPClientWindow extends JFrame {
 		EventQueue.invokeLater(new Runnable() {
 			@Override
 			public void run() {
-				// TODO Auto-generated method stub
-
+				try {
+					connection.sendMessage(new Message(
+							Message.MessageType.CHATMESSAGE, textInput
+									.getText()));
+				} catch (IOException e) {
+					JOptionPane.showMessageDialog(
+							null,
+							"Senden der Nachricht fehlgeschlagen:\n"
+									+ e.getMessage(), "Fehler",
+							JOptionPane.ERROR_MESSAGE);
+				}
 			}
 		});
 	}

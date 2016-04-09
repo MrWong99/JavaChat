@@ -1,41 +1,52 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
 
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 
 public class LoginDialog extends JDialog {
 
-	private final JPanel contentPanel = new JPanel();
-	private JTextField txtIp;
-	private JTextField txtPort;
-	private JLabel dispConnectivity;
-	private JCheckBox chkSaveUserData;
-	private JCheckBox chkSaveConnData;
-	private JTextField txtUsername;
-	private JTextField txtPassword;
+	private static final long serialVersionUID = -5372463753157935156L;
 
-	/**
-	 * Launch the application.
-	 */
-	public static void main(String[] args) {
-		try {
-			LoginDialog dialog = new LoginDialog();
-			dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-			dialog.setVisible(true);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
+	private final JPanel contentPanel = new JPanel();
+
+	private JTextField txtIp;
+
+	private JTextField txtPort;
+
+	private JLabel dispConnectivity;
+
+	private JCheckBox chkSaveUserData;
+
+	private JCheckBox chkSaveConnData;
+
+	private JTextField txtUsername;
+
+	private JPasswordField txtPassword;
+
+	private User user;
+
+	private Socket socket;
 
 	public LoginDialog() {
 		setBounds(100, 100, 555, 300);
@@ -135,6 +146,12 @@ public class LoginDialog extends JDialog {
 				gbc_btnCheckConnection.insets = new Insets(0, 0, 5, 0);
 				gbc_btnCheckConnection.gridx = 1;
 				gbc_btnCheckConnection.gridy = 7;
+				btnCheckConnection.addActionListener(new ActionListener() {
+					@Override
+					public void actionPerformed(ActionEvent e) {
+						checkAndDisplayConnection();
+					}
+				});
 				connectionPanel.add(btnCheckConnection, gbc_btnCheckConnection);
 			}
 			{
@@ -189,7 +206,7 @@ public class LoginDialog extends JDialog {
 				txtUsername = new JTextField();
 				GridBagConstraints gbc_txtUsername = new GridBagConstraints();
 				gbc_txtUsername.gridwidth = 2;
-				gbc_txtUsername.insets = new Insets(0, 0, 5, 5);
+				gbc_txtUsername.insets = new Insets(0, 0, 5, 0);
 				gbc_txtUsername.fill = GridBagConstraints.HORIZONTAL;
 				gbc_txtUsername.gridx = 0;
 				gbc_txtUsername.gridy = 3;
@@ -206,7 +223,7 @@ public class LoginDialog extends JDialog {
 				userPanel.add(lblPassword, gbc_lblPassword);
 			}
 			{
-				txtPassword = new JTextField();
+				txtPassword = new JPasswordField();
 				GridBagConstraints gbc_txtPassword = new GridBagConstraints();
 				gbc_txtPassword.gridwidth = 2;
 				gbc_txtPassword.insets = new Insets(0, 0, 5, 5);
@@ -214,7 +231,6 @@ public class LoginDialog extends JDialog {
 				gbc_txtPassword.gridx = 0;
 				gbc_txtPassword.gridy = 6;
 				userPanel.add(txtPassword, gbc_txtPassword);
-				txtPassword.setColumns(10);
 			}
 			{
 				JButton btnBenutzerErstellen = new JButton("Benutzer erstellen");
@@ -222,6 +238,57 @@ public class LoginDialog extends JDialog {
 				gbc_btnBenutzerErstellen.insets = new Insets(0, 0, 5, 0);
 				gbc_btnBenutzerErstellen.gridx = 1;
 				gbc_btnBenutzerErstellen.gridy = 7;
+				btnBenutzerErstellen.addActionListener(new ActionListener() {
+					@Override
+					public void actionPerformed(ActionEvent e) {
+						if (socket != null && !socket.isClosed()) {
+							try {
+								ObjectOutputStream oout = new ObjectOutputStream(
+										socket.getOutputStream());
+								ObjectInputStream oin = new ObjectInputStream(
+										socket.getInputStream());
+								oout.writeObject(new Message(
+										Message.MessageType.ADDUSERREQUEST,
+										new User(txtUsername.getText(),
+												new String(txtPassword
+														.getPassword())
+														.hashCode())));
+								oout.flush();
+								Object in = oin.readObject();
+								if (in != null && in instanceof Message
+										&& ((Message) in).getType() != null) {
+									switch (((Message) in).getType()) {
+									case SUCCESSREPORT:
+										JOptionPane.showMessageDialog(null,
+												"Benutzer erstellt.");
+										break;
+									case ERRORREPORT:
+										user = null;
+										JOptionPane.showMessageDialog(null,
+												((Message) in).getData(),
+												"Fehler",
+												JOptionPane.ERROR_MESSAGE);
+										break;
+									default:
+										break;
+									}
+								}
+							} catch (IOException | ClassNotFoundException e1) {
+								displayNoConnection();
+							}
+						} else {
+							displayNoConnection();
+						}
+					}
+
+					private void displayNoConnection() {
+						JOptionPane
+								.showMessageDialog(
+										null,
+										"Es besteht keine Serververbindung. Richten sie diese zunaechst ein und 'Testen' Sie sie.",
+										"Fehler", JOptionPane.ERROR_MESSAGE);
+					}
+				});
 				userPanel.add(btnBenutzerErstellen, gbc_btnBenutzerErstellen);
 			}
 			{
@@ -235,21 +302,189 @@ public class LoginDialog extends JDialog {
 			}
 		}
 		{
+			ActionListener disposeListener = new ActionListener() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					dispose();
+				}
+			};
 			JPanel buttonPane = new JPanel();
 			buttonPane.setLayout(new FlowLayout(FlowLayout.RIGHT));
 			getContentPane().add(buttonPane, BorderLayout.SOUTH);
 			{
 				JButton loginBtn = new JButton("Login");
-				loginBtn.setActionCommand("OK");
+				loginBtn.addActionListener(new ActionListener() {
+					@Override
+					public void actionPerformed(ActionEvent e) {
+						if (socket == null || !socket.isConnected()) {
+							checkAndDisplayConnection();
+						}
+						if (socket != null) {
+							user = new User(txtUsername.getText(), new String(
+									txtPassword.getPassword()).hashCode());
+							try {
+								ObjectOutputStream oout = new ObjectOutputStream(
+										socket.getOutputStream());
+								ObjectInputStream oin = new ObjectInputStream(
+										socket.getInputStream());
+								oout.writeObject(new Message(
+										Message.MessageType.LOGINREQUEST, user));
+								oout.flush();
+								Object in = oin.readObject();
+								if (in != null && in instanceof Message
+										&& ((Message) in).getType() != null) {
+									switch (((Message) in).getType()) {
+									case SUCCESSREPORT:
+										dispose();
+										break;
+									case ERRORREPORT:
+										user = null;
+										JOptionPane.showMessageDialog(null,
+												((Message) in).getData(),
+												"Fehler",
+												JOptionPane.ERROR_MESSAGE);
+										break;
+									default:
+										break;
+									}
+								}
+							} catch (IOException | ClassNotFoundException e1) {
+								if (socket != null) {
+									if (!socket.isClosed()) {
+										try {
+											socket.close();
+										} catch (IOException e2) {
+											e2.printStackTrace();
+										}
+									}
+									socket = null;
+								}
+								if (user != null) {
+									user = null;
+								}
+							}
+						}
+					}
+				});
+
 				buttonPane.add(loginBtn);
 				getRootPane().setDefaultButton(loginBtn);
 			}
 			{
 				JButton cancelBtn = new JButton("Abbrechen");
-				cancelBtn.setActionCommand("Cancel");
+				cancelBtn.addActionListener(disposeListener);
 				buttonPane.add(cancelBtn);
 			}
 		}
+
+		addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowClosing(WindowEvent e) {
+				if (chkSaveConnData.isSelected()) {
+					try {
+						PersistData.persist("server.ip", txtIp.getText());
+						PersistData.persist("server.port", txtPort.getText());
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
+				}
+				if (chkSaveUserData.isSelected()) {
+					try {
+						PersistData.persist("user.name", txtUsername.getText());
+						PersistData.persist("user.pass",
+								txtPassword.getPassword());
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
+				}
+			}
+		});
+
+		loadSavedData();
 	}
 
+	public User getUser() {
+		return user;
+	}
+
+	public Socket getSocket() {
+		return socket;
+	}
+
+	private void checkAndDisplayConnection() {
+		try {
+			Socket fromSetting = new Socket(txtIp.getText(),
+					Integer.parseInt(txtPort.getText()));
+			if (fromSetting.isConnected()) {
+				if (socket != null) {
+					if (!socket.isClosed()) {
+						socket.close();
+					}
+					socket = null;
+				}
+				socket = fromSetting;
+				EventQueue.invokeLater(new Runnable() {
+					@Override
+					public void run() {
+						dispConnectivity.setForeground(Color.GREEN);
+						dispConnectivity.setText("Verbindung aufgebaut");
+					}
+				});
+			} else {
+				System.out.println("No connected.");
+			}
+		} catch (Exception e) {
+			if (socket != null) {
+				if (!socket.isClosed()) {
+					try {
+						socket.close();
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
+				}
+				socket = null;
+			}
+			EventQueue.invokeLater(new Runnable() {
+				@Override
+				public void run() {
+					dispConnectivity.setForeground(Color.RED);
+					dispConnectivity.setText("Keine Verbindung");
+				}
+			});
+			e.printStackTrace();
+		}
+	}
+
+	private void loadSavedData() {
+		try {
+			final Object dataIp = PersistData.load("server.ip");
+			final Object dataPort = PersistData.load("server.port");
+			if (dataIp != null && dataIp instanceof String && dataPort != null
+					&& dataPort instanceof Integer) {
+				EventQueue.invokeLater(new Runnable() {
+					@Override
+					public void run() {
+						txtIp.setText((String) dataIp);
+						txtPort.setText("" + dataPort);
+					}
+				});
+			}
+		} catch (ClassNotFoundException | IOException e) {
+		}
+		try {
+			final Object dataName = PersistData.load("user.name");
+			final Object dataPass = PersistData.load("user.pass");
+			if (dataName != null && dataName instanceof String
+					&& dataPass != null && dataPass instanceof String) {
+				EventQueue.invokeLater(new Runnable() {
+					@Override
+					public void run() {
+						txtUsername.setText((String) dataName);
+						txtPassword.setText((String) dataPass);
+					}
+				});
+			}
+		} catch (ClassNotFoundException | IOException e) {
+		}
+	}
 }

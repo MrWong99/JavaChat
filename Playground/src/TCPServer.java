@@ -35,6 +35,10 @@ public class TCPServer {
 		startAcceptThread();
 	}
 
+	public boolean isAlive() {
+		return acceptThread.isAlive();
+	}
+
 	public void broadcastMessage(Message message) {
 		for (ClientConnection conn : connectedClients) {
 			if (conn.connectionIsActive() && conn.getUser().isOnline()) {
@@ -54,7 +58,7 @@ public class TCPServer {
 				public void run() {
 					ObjectInputStream oin;
 					ObjectOutputStream oout;
-					while (!Thread.interrupted()) {
+					while (!Thread.interrupted() && !socket.isClosed()) {
 						try {
 							Socket clientSocket = socket.accept();
 							oin = new ObjectInputStream(clientSocket
@@ -139,6 +143,7 @@ public class TCPServer {
 					}
 				}
 			});
+			acceptThread.start();
 		}
 	}
 

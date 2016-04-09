@@ -47,7 +47,8 @@ public class ClientConnection {
 					} catch (IOException e1) {
 						e1.printStackTrace();
 					}
-					while (!Thread.interrupted() && user.isOnline()) {
+					while (!Thread.interrupted() && user.isOnline()
+							&& socket.isConnected()) {
 						try {
 							Message input = (Message) userInputStream
 									.readObject();
